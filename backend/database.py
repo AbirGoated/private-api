@@ -15,10 +15,12 @@ CREATE TABLE IF NOT EXISTS tasks (
 choice = input("""
     Choose an operation:
     1. Insert
-    2. Read all
-    3. Read specific data
-    4. Update
-    5. Delete
+    2. Read All (sorted)
+    3. Read Specific Task
+    4. Update Task To Completed
+    5. Count Total Tasks
+    6. Count Completed Tasks
+    7. Delete
     
     Enter Choice: """)
 if choice == "1":
@@ -30,8 +32,8 @@ if choice == "1":
     """,(title, 0))
     print("Task added")
 elif choice == "2":
-    #read all data:
-    cursor.execute("""SELECT * FROM tasks""")
+    #read all sorted data:
+    cursor.execute("""SELECT * FROM tasks ORDER BY id DESC""")
     rows = cursor.fetchall()
     print(rows)
 elif choice == "3":
@@ -48,12 +50,30 @@ elif choice == "4":
         SET completed = ?
         WHERE id = ?
         """, (1, task_id))
-    print("Updated")
+    if cursor.rowcount==1:
+        print("Task Updated")
+    else:
+        print("Task not found")
 elif choice == "5":
+    cursor.execute("SELECT COUNT(*) FROM tasks")
+    res = cursor.fetchone()
+    print("Total tasks: ", res[0])
+elif choice == "6":
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM tasks
+        WHERE completed=?
+    """, (1,))
+    res=cursor.fetchone()
+    print("Completed tasks: ", res[0])
+elif choice == "7":
     #delete data:
     task_id=int(input("Enter task id: "))
     cursor.execute("""DELETE FROM tasks WHERE id = ?""", (task_id,))
-    print("Deleted")
+    if cursor.rowcount==1:
+        print("Task deleted")
+    else:
+        print("Task not found")
 else:
     print("Invalid Choice")
 
