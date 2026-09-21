@@ -31,6 +31,8 @@ connection.commit()
 connection.close()
 
 def create_task(title, project_id=None):
+    connection = get_connection()
+    cursor = connection.cursor()
     cursor.execute("""INSERT INTO tasks (title, completed, project_id) VALUES (?, ?, ?)""", (title, 0, project_id))
     connection.commit()
     task_id = cursor.lastrowid
@@ -51,7 +53,7 @@ def get_task(task_id):
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
-    task = cursor.fetchall()
+    task = cursor.fetchone()
     connection.close()
     return task
 
