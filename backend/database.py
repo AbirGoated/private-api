@@ -1,49 +1,66 @@
 import sqlite3
 
 connection = sqlite3.connect("tasks.db")
+connection.execute("PRAGMA foreign_keys = ON")
 cursor = connection.cursor()
 
-#table creation:
+
+#project table creation:
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+)
+""")
+
+#tasks table creation:
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    completed INTEGER DEFAULT 0
+    completed INTEGER DEFAULT 0,
+    project_id INTEGER,
+    FOREIGN KEY (project_id) REFERENCES projects(id)
 )
 """)
 
 choice = input("""
     Choose an operation:
-    1. Insert
+    1. Insert Task
     2. Read All (sorted)
     3. Read Specific Task
     4. Update Task To Completed
     5. Count Total Tasks
     6. Count Completed Tasks
-    7. Delete
-    
+    7. Read Latest Tasks
+    8. Search Tasks
+    9. Delete Task
+    10. Insert Project
+    11. Read Projects
+    12. Delete Project
     Enter Choice: """)
 if choice == "1":
-    #data insertion in tables:
-    title=input("Enter task to be added: ")
+    title=input("Enter task title: ")
+    project_id=input("Enter project id or leave blank if none: ")
+    if project_id == "":
+        project_id = None
+    else:
+        project_id = int(project_id)
     cursor.execute("""
-    INSERT INTO tasks(title, completed)
-    VALUES (?, ?)
-    """,(title, 0))
+    INSERT INTO tasks(title, completed, project_id)
+    VALUES (?, ?, ?)
+    """,(title, 0, project_id))
     print("Task added")
 elif choice == "2":
-    #read all sorted data:
-    cursor.execute("""SELECT * FROM tasks ORDER BY id DESC""")
+    cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
     rows = cursor.fetchall()
     print(rows)
 elif choice == "3":
-    #read specific data:
     task_id=int(input("Enter task id to view: "))
-    cursor.execute("SELECT*FROM tasks WHERE id=?", (task_id,))
+    cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
     row = cursor.fetchone()
     print(row)
 elif choice == "4":
-    #Update data:
     task_id=int(input("Enter task id to update: "))
     cursor.execute("""
         UPDATE tasks
@@ -67,13 +84,37 @@ elif choice == "6":
     res=cursor.fetchone()
     print("Completed tasks: ", res[0])
 elif choice == "7":
-    #delete data:
+    lim=int(input("How many tasks do you wish to see? "))
+    cursor.execute("""SELECT * FROM tasks ORDER BY id DESC LIMIT ?""", (lim,))
+    rows = cursor.fetchall()
+    print(rows)
+elif choice == "8":
+    search=input("Enter task: ")
+    cursor.execute("""SELECT * FROM tasks WHERE title LIKE ?""", (f"%{search}%",))
+    rows = cursor.fetchall()
+    print(rows)
+elif choice == "9":
     task_id=int(input("Enter task id: "))
     cursor.execute("""DELETE FROM tasks WHERE id = ?""", (task_id,))
     if cursor.rowcount==1:
         print("Task deleted")
     else:
         print("Task not found")
+elif choice == "10":
+    project_name=input("Enter project name: ")
+    cursor.execute("""INSERT INTO projects (name) VALUES (?)""", (project_name,))
+    print("Project Added")
+elif choice == "11":
+    cursor.execute("SELECT * FROM projects")
+    projects = cursor.fetchall()
+    print(projects)
+elif choice == "12":
+    project_id = int(input("Enter project id to be deleted: "))
+    cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+    if cursor.rowcount==1:
+        print("Project deleted")
+    else:
+        print("Project not found")
 else:
     print("Invalid Choice")
 
