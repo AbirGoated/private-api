@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from backend.database import get_tasks
 
 app = FastAPI()
 
@@ -7,17 +8,14 @@ class Task(BaseModel):
     title: str
     completed: bool = False 
 
-tasks = [
-
-]
 
 @app.get("/")
 def home():
     return {"message": "Personal API is running!"}
 
 @app.get("/tasks")
-def get_tasks():
-    return tasks
+def read_tasks():
+    return get_tasks()
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int):
