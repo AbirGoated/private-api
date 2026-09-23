@@ -1,8 +1,12 @@
 import sqlite3
+import os
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks.db")
 
 def get_connection():
-    connection = sqlite3.connect("tasks.db")
+    connection = sqlite3.connect(DB_PATH, timeout=5)
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
     return connection
 
 connection = get_connection()
@@ -32,145 +36,92 @@ connection.close()
 
 def create_task(title, project_id=None):
     connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""INSERT INTO tasks (title, completed, project_id) VALUES (?, ?, ?)""", (title, 0, project_id))
-    connection.commit()
-    task_id = cursor.lastrowid
-    connection.close()
-    return task_id
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""INSERT INTO tasks (title, completed, project_id) VALUES (?, ?, ?)""", (title, 0, project_id))
+        connection.commit()
+        return cursor.lastrowid
+    finally:
+        connection.close()
 
 
 def get_tasks():
     connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
-    tasks = cursor.fetchall()
-    connection.close()
-    return tasks
-
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": row[0],
+                "title": row[1],
+                "completed": bool(row[2]),
+                "project_id": row[3],
+                "project_name": row[4],
+            }
+            for row in rows
+        ]
+    finally:
+        connection.close()
 
 def get_task(task_id):
     connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
-    task = cursor.fetchone()
-    connection.close()
-    return task
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "title": row[1],
+            "completed": bool(row[2]),
+            "project_id": row[3],
+            "project_name": row[4],
+        }
+    finally:
+        connection.close()
 
 def complete_task(task_id):
     connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""UPDATE tasks SET completed = 1 WHERE id = ?""", (task_id,))
-    connection.commit()
-    rows = cursor.rowcount
-    connection.close()
-    return rows
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""UPDATE tasks SET completed = 1 WHERE id = ?""", (task_id,))
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
+
+def update_task(task_id, **fields):
+    """
+    Updates only the fields actually passed in.
+    Pass exactly the fields the caller sent (e.g. via `.model_dump(exclude_unset=True)`)
+    so that an explicit `None` (e.g. clearing project_id) is distinguishable from a
+    field that was never sent at all.
+    """
+    if not fields:
+        return 0
+    if "completed" in fields:
+        fields["completed"] = int(fields["completed"])
+
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        set_clause = ", ".join(f"{key} = ?" for key in fields)
+        values = list(fields.values()) + [task_id]
+        cursor.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
 
 
 def delete_task(task_id):
     connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute("""DELETE FROM tasks WHERE id = ?""", (task_id,))
-    connection.commit()
-    rows = cursor.rowcount
-    connection.close()
-    return rows
-
-
-# choice = input("""
-#     Choose an operation:
-#     1. Insert Task
-#     2. Read All (sorted)
-#     3. Read Specific Task
-#     4. Update Task To Completed
-#     5. Count Total Tasks
-#     6. Count Completed Tasks
-#     7. Read Latest Tasks
-#     8. Search Tasks
-#     9. Delete Task
-#     10. Insert Project
-#     11. Read Projects
-#     12. Delete Project
-#     Enter Choice: """)
-# if choice == "1":
-#     title=input("Enter task title: ")
-#     project_id=input("Enter project id or leave blank if none: ")
-#     if project_id == "":
-#         project_id = None
-#     else:
-#         project_id = int(project_id)
-#     cursor.execute("""
-#     INSERT INTO tasks(title, completed, project_id)
-#     VALUES (?, ?, ?)
-#     """,(title, 0, project_id))
-#     print("Task added")
-# elif choice == "2":
-#     cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
-#     rows = cursor.fetchall()
-#     print(rows)
-# elif choice == "3":
-#     task_id=int(input("Enter task id to view: "))
-#     cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
-#     row = cursor.fetchone()
-#     print(row)
-# elif choice == "4":
-#     task_id=int(input("Enter task id to update: "))
-#     cursor.execute("""
-#         UPDATE tasks
-#         SET completed = ?
-#         WHERE id = ?
-#         """, (1, task_id))
-#     if cursor.rowcount==1:
-#         print("Task Updated")
-#     else:
-#         print("Task not found")
-# elif choice == "5":
-#     cursor.execute("SELECT COUNT(*) FROM tasks")
-#     res = cursor.fetchone()
-#     print("Total tasks: ", res[0])
-# elif choice == "6":
-#     cursor.execute("""
-#         SELECT COUNT(*)
-#         FROM tasks
-#         WHERE completed=?
-#     """, (1,))
-#     res=cursor.fetchone()
-#     print("Completed tasks: ", res[0])
-# elif choice == "7":
-#     lim=int(input("How many tasks do you wish to see? "))
-#     cursor.execute("""SELECT * FROM tasks ORDER BY id DESC LIMIT ?""", (lim,))
-#     rows = cursor.fetchall()
-#     print(rows)
-# elif choice == "8":
-#     search=input("Enter task: ")
-#     cursor.execute("""SELECT * FROM tasks WHERE title LIKE ?""", (f"%{search}%",))
-#     rows = cursor.fetchall()
-#     print(rows)
-# elif choice == "9":
-#     task_id=int(input("Enter task id: "))
-#     cursor.execute("""DELETE FROM tasks WHERE id = ?""", (task_id,))
-#     if cursor.rowcount==1:
-#         print("Task deleted")
-#     else:
-#         print("Task not found")
-# elif choice == "10":
-#     project_name=input("Enter project name: ")
-#     cursor.execute("""INSERT INTO projects (name) VALUES (?)""", (project_name,))
-#     print("Project Added")
-# elif choice == "11":
-#     cursor.execute("SELECT * FROM projects")
-#     projects = cursor.fetchall()
-#     print(projects)
-# elif choice == "12":
-#     project_id = int(input("Enter project id to be deleted: "))
-#     cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-#     if cursor.rowcount==1:
-#         print("Project deleted")
-#     else:
-#         print("Project not found")
-# else:
-#     print("Invalid Choice")
-
-
-# connection.commit()
-# connection.close()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""DELETE FROM tasks WHERE id = ?""", (task_id,))
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
