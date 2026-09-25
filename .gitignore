@@ -1,5 +1,12 @@
+.env
+*.db
 .venv/
 __pycache__/
 *.pyc
-.env
-*.db
+backend/tasks.db
+backend/tasks.db-wal
+backend/tasks.db-shm
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

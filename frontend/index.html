@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal API</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Personal API</span>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item is-active" data-view="all">
+          <span class="nav-item-label">All tasks</span>
+          <span class="nav-item-count" id="all-count">0</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Projects</span>
+        <ul class="project-list" id="project-list">
+          <!-- project items injected here -->
+        </ul>
+
+        <form class="add-project-form" id="add-project-form">
+          <input
+            type="text"
+            id="new-project-input"
+            class="add-project-input"
+            placeholder="Add project"
+            autocomplete="off"
+            maxlength="60"
+          />
+        </form>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="main-header">
+        <h1 class="view-title" id="view-title">All tasks</h1>
+        <span class="view-count" id="view-count">0 tasks</span>
+      </header>
+
+      <form class="add-task-form" id="add-task-form">
+        <input
+          type="text"
+          id="new-task-input"
+          class="add-task-input"
+          placeholder="Add a task…"
+          autocomplete="off"
+          maxlength="200"
+        />
+        <select id="new-task-project" class="add-task-project" aria-label="Assign to project">
+          <option value="">No project</option>
+        </select>
+      </form>
+
+      <div class="add-existing-wrap" id="add-existing-wrap" hidden>
+        <select id="add-existing-select" class="add-existing-select" aria-label="Add an existing task to this project">
+          <option value="">Add existing task…</option>
+        </select>
+      </div>
+
+      <div class="task-list" id="task-list">
+        <!-- task rows injected here -->
+      </div>
+
+      <p class="empty-state" id="empty-state" hidden>
+        Nothing here yet. Add a task above to get started.
+      </p>
+
+      <p class="error-banner" id="error-banner" hidden></p>
+    </main>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
