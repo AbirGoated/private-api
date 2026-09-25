@@ -125,3 +125,79 @@ def delete_task(task_id):
         return cursor.rowcount
     finally:
         connection.close()
+
+
+def create_project(name):
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""INSERT INTO projects (name) VALUES (?)""", (name,))
+        connection.commit()
+        return cursor.lastrowid
+    finally:
+        connection.close()
+
+
+def get_projects():
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT projects.id, projects.name, COUNT(tasks.id)
+            FROM projects
+            LEFT JOIN tasks ON tasks.project_id = projects.id
+            GROUP BY projects.id
+            ORDER BY projects.id
+        """)
+        rows = cursor.fetchall()
+        return [
+            {"id": row[0], "name": row[1], "task_count": row[2]}
+            for row in rows
+        ]
+    finally:
+        connection.close()
+
+
+def get_project(project_id):
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT projects.id, projects.name, COUNT(tasks.id)
+            FROM projects
+            LEFT JOIN tasks ON tasks.project_id = projects.id
+            WHERE projects.id = ?
+            GROUP BY projects.id
+        """, (project_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {"id": row[0], "name": row[1], "task_count": row[2]}
+    finally:
+        connection.close()
+
+
+def update_project(project_id, **fields):
+    if not fields:
+        return 0
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        set_clause = ", ".join(f"{key} = ?" for key in fields)
+        values = list(fields.values()) + [project_id]
+        cursor.execute(f"UPDATE projects SET {set_clause} WHERE id = ?", values)
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
+
+
+def delete_project(project_id):
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""DELETE FROM projects WHERE id = ?""", (project_id,))
+        connection.commit()
+        return cursor.rowcount
+    finally:
+        connection.close()
