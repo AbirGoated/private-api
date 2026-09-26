@@ -32,6 +32,7 @@ class TaskOut(BaseModel):
     completed: bool = False
     project_id: int | None = None
     project_name: str | None = None
+    created_at: str
 
 class Project(BaseModel):
     name: str
@@ -43,6 +44,7 @@ class ProjectOut(BaseModel):
     id: int
     name: str
     task_count: int
+    created_at: str
 
 
 @app.get("/tasks", response_model=list[TaskOut])

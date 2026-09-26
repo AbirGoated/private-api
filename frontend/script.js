@@ -1,20 +1,9 @@
-// ============================================
-// Config
-// ============================================
-
 const API_BASE = "http://127.0.0.1:8000";
-
-// ============================================
-// State
-// ============================================
 
 let tasks = [];
 let projects = [];
-let currentView = "all"; // "all" | project id (number)
+let currentView = "all";
 
-// ============================================
-// DOM refs
-// ============================================
 
 const el = {
   allCount: document.getElementById("all-count"),
@@ -35,9 +24,6 @@ const el = {
   errorBanner: document.getElementById("error-banner"),
 };
 
-// ============================================
-// API helpers
-// ============================================
 
 async function apiRequest(path, options = {}) {
   let response;
@@ -56,7 +42,7 @@ async function apiRequest(path, options = {}) {
       const body = await response.json();
       if (body.detail) detail = body.detail;
     } catch (_) {
-      /* no JSON body */
+
     }
     throw new Error(detail);
   }
@@ -94,9 +80,6 @@ const api = {
   deleteProject: (id) => apiRequest(`/projects/${id}`, { method: "DELETE" }),
 };
 
-// ============================================
-// Error banner
-// ============================================
 
 function showError(message) {
   el.errorBanner.textContent = message;
@@ -108,9 +91,44 @@ function clearError() {
   el.errorBanner.textContent = "";
 }
 
-// ============================================
-// Rendering
-// ============================================
+function formatCreatedAt(sqliteTimestamp) {
+  if (!sqliteTimestamp) return "Unknown";
+  const date = new Date(sqliteTimestamp.replace(" ", "T") + "Z");
+  if (isNaN(date)) return "Unknown";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function createInfoIcon(label) {
+  const wrap = document.createElement("span");
+  wrap.className = "info-icon-wrap";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "info-icon";
+  button.setAttribute("aria-label", label);
+  button.innerHTML =
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>' +
+    '<path d="M8 7.2V11.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' +
+    '<circle cx="8" cy="5" r="0.9" fill="currentColor"/>' +
+    "</svg>";
+  button.addEventListener("click", (e) => e.stopPropagation());
+
+  const tooltip = document.createElement("span");
+  tooltip.className = "info-tooltip";
+  tooltip.textContent = label;
+  tooltip.setAttribute("role", "tooltip");
+
+  wrap.append(button, tooltip);
+  return wrap;
+}
+
 
 function renderSidebar() {
   el.allCount.textContent = tasks.length;
@@ -139,6 +157,11 @@ function renderSidebar() {
 
     btn.append(name, count);
 
+    const actions = document.createElement("span");
+    actions.className = "project-item-actions";
+
+    const infoIcon = createInfoIcon(`Created ${formatCreatedAt(project.created_at)}`);
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "project-item-delete";
     deleteBtn.type = "button";
@@ -149,11 +172,11 @@ function renderSidebar() {
       handleDeleteProject(project.id);
     });
 
-    li.append(btn, deleteBtn);
+    actions.append(infoIcon, deleteBtn);
+    li.append(btn, actions);
     el.projectList.appendChild(li);
   });
 
-  // keep the "assign to project" dropdown on the add-task form in sync
   const previousValue = el.newTaskProject.value;
   el.newTaskProject.innerHTML = '<option value="">No project</option>';
   projects.forEach((project) => {
@@ -203,8 +226,9 @@ function renderTasks() {
 
     row.append(checkbox, title);
 
-    // project reassignment — lets you move a task to a different project,
-    // or clear it back to "No project", right from the row
+    const infoIcon = createInfoIcon(`Created ${formatCreatedAt(task.created_at)}`);
+    row.appendChild(infoIcon);
+
     const projectSelect = document.createElement("select");
     projectSelect.className = "task-project-select";
     projectSelect.setAttribute("aria-label", `Change project for "${task.title}"`);
@@ -271,10 +295,6 @@ function render() {
   renderAddExisting();
 }
 
-// ============================================
-// Actions
-// ============================================
-
 async function loadAll() {
   try {
     const [taskData, projectData] = await Promise.all([api.getTasks(), api.getProjects()]);
@@ -327,7 +347,7 @@ async function handleReassignTask(id, project_id) {
     render();
   } catch (err) {
     showError(err.message);
-    render(); // snap the select back to the task's real project_id
+    render();
   }
 }
 
@@ -367,24 +387,18 @@ async function handleDeleteProject(id) {
     clearError();
     render();
   } catch (err) {
-    // e.g. "Cannot delete project with tasks still linked to it."
     showError(err.message);
   }
 }
 
-// task_count on the project list can drift after add/delete task;
-// cheapest correct fix is re-fetching projects rather than tracking counts locally
 async function refreshProjectCounts() {
   try {
     projects = await api.getProjects();
   } catch (err) {
-    // non-fatal: sidebar counts just won't update this cycle
+
   }
 }
 
-// ============================================
-// Event wiring
-// ============================================
 
 el.navAll.addEventListener("click", () => {
   currentView = "all";
@@ -400,8 +414,5 @@ el.addExistingSelect.addEventListener("change", () => {
   handleReassignTask(taskId, currentView);
 });
 
-// ============================================
-// Init
-// ============================================
 
 loadAll();

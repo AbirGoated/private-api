@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from datetime import datetime, timezone
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks.db")
 
@@ -16,7 +17,8 @@ cursor = connection.cursor()
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """)
 
@@ -27,18 +29,34 @@ CREATE TABLE IF NOT EXISTS tasks (
     title TEXT NOT NULL,
     completed INTEGER DEFAULT 0,
     project_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id)
 )
 """)
 
+for table in ("projects", "tasks"):
+    existing_columns = [row[1] for row in cursor.execute(f"PRAGMA table_info({table})")]
+    if "created_at" not in existing_columns:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN created_at TEXT")
+
+now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+for table in ("projects", "tasks"):
+    cursor.execute(f"UPDATE {table} SET created_at = ? WHERE created_at IS NULL", (now,))
+
 connection.commit()
 connection.close()
+
+def _now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 def create_task(title, project_id=None):
     connection = get_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("""INSERT INTO tasks (title, completed, project_id) VALUES (?, ?, ?)""", (title, 0, project_id))
+        cursor.execute(
+            """INSERT INTO tasks (title, completed, project_id, created_at) VALUES (?, ?, ?, ?)""",
+            (title, 0, project_id, _now())
+        )
         connection.commit()
         return cursor.lastrowid
     finally:
@@ -49,7 +67,7 @@ def get_tasks():
     connection = get_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
+        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name, tasks.created_at FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id ORDER BY tasks.id DESC""")
         rows = cursor.fetchall()
         return [
             {
@@ -58,6 +76,7 @@ def get_tasks():
                 "completed": bool(row[2]),
                 "project_id": row[3],
                 "project_name": row[4],
+                "created_at": row[5],
             }
             for row in rows
         ]
@@ -68,7 +87,7 @@ def get_task(task_id):
     connection = get_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
+        cursor.execute("""SELECT tasks.id, tasks.title, tasks.completed, tasks.project_id, projects.name, tasks.created_at FROM tasks LEFT JOIN projects ON tasks.project_id = projects.id WHERE tasks.id = ?""", (task_id,))
         row = cursor.fetchone()
         if row is None:
             return None
@@ -78,6 +97,7 @@ def get_task(task_id):
             "completed": bool(row[2]),
             "project_id": row[3],
             "project_name": row[4],
+            "created_at": row[5],
         }
     finally:
         connection.close()
@@ -93,12 +113,6 @@ def complete_task(task_id):
         connection.close()
 
 def update_task(task_id, **fields):
-    """
-    Updates only the fields actually passed in.
-    Pass exactly the fields the caller sent (e.g. via `.model_dump(exclude_unset=True)`)
-    so that an explicit `None` (e.g. clearing project_id) is distinguishable from a
-    field that was never sent at all.
-    """
     if not fields:
         return 0
     if "completed" in fields:
@@ -131,7 +145,10 @@ def create_project(name):
     connection = get_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("""INSERT INTO projects (name) VALUES (?)""", (name,))
+        cursor.execute(
+            """INSERT INTO projects (name, created_at) VALUES (?, ?)""",
+            (name, _now())
+        )
         connection.commit()
         return cursor.lastrowid
     finally:
@@ -143,7 +160,7 @@ def get_projects():
     try:
         cursor = connection.cursor()
         cursor.execute("""
-            SELECT projects.id, projects.name, COUNT(tasks.id)
+            SELECT projects.id, projects.name, COUNT(tasks.id), projects.created_at
             FROM projects
             LEFT JOIN tasks ON tasks.project_id = projects.id
             GROUP BY projects.id
@@ -151,7 +168,7 @@ def get_projects():
         """)
         rows = cursor.fetchall()
         return [
-            {"id": row[0], "name": row[1], "task_count": row[2]}
+            {"id": row[0], "name": row[1], "task_count": row[2], "created_at": row[3]}
             for row in rows
         ]
     finally:
@@ -163,7 +180,7 @@ def get_project(project_id):
     try:
         cursor = connection.cursor()
         cursor.execute("""
-            SELECT projects.id, projects.name, COUNT(tasks.id)
+            SELECT projects.id, projects.name, COUNT(tasks.id), projects.created_at
             FROM projects
             LEFT JOIN tasks ON tasks.project_id = projects.id
             WHERE projects.id = ?
@@ -172,7 +189,7 @@ def get_project(project_id):
         row = cursor.fetchone()
         if row is None:
             return None
-        return {"id": row[0], "name": row[1], "task_count": row[2]}
+        return {"id": row[0], "name": row[1], "task_count": row[2], "created_at": row[3]}
     finally:
         connection.close()
 
